@@ -1,0 +1,9 @@
+path: . # root directory of your project
+
+train: dataset/train_dataset/train_images
+val: dataset/train_dataset/train_images # temporary (until you split)
+
+names:
+  0: red_light
+  1: yellow_light
+  2: green_light

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>🚗 YOLO + Gemini Voice Assistant</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f172a;
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: #60a5fa;
+            margin: 30px 0 10px;
+            font-size: 2rem;
+            text-align: center;
+        }
+
+        #video {
+            border: 4px solid #3b82f6;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        #output {
+            background-color: #1e293b;
+            color: #f1f5f9;
+            padding: 15px 20px;
+            border-radius: 10px;
+            max-width: 640px;
+            font-size: 1.1rem;
+            text-align: left;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.5);
+            white-space: pre-line;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>🚦 YOLO + Gemini Voice Assistant</h1>
+
+    <img id="video" src="{{ url_for('video_feed') }}" width="640" height="480" />
+
+    <p id="output">⏳ Waiting for detection...</p>
+
+    <script>
+        let lastSpokenTime = 0;
+
+        function speakText(text) {
+            if (!text) return;
+
+            speechSynthesis.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+
+        function updateInfo() {
+            fetch('/latest_detection')
+                .then(response => response.json())
+                .then(data => {
+
+                    const output = document.getElementById('output');
+
+                    if (data.label) {
+
+                        const msg = `🔍 ${data.label} detected at ${data.distance}m.\n\n💬 Gemini says: ${data.response}`;
+                        output.innerText = msg;
+
+                        const now = Date.now();
+
+                        // 🔥 SPEAK every 5 seconds MAX (not spammy, not blocked)
+                        if (now - lastSpokenTime > 5000) {
+
+                            speakText(data.response);
+                            lastSpokenTime = now;
+                        }
+
+                    } else {
+                        output.innerText = "⚠️ No traffic light detected yet.";
+                    }
+                });
+        }
+
+        setInterval(updateInfo, 4000);
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,25 @@
+# Core Python version (managed by conda, NOT pip)
+# Python 3.10.x
+
+# ---- YOLO & Vision ----
+ultralytics==8.3.169
+torch==2.7.1
+torchvision==0.22.1
+opencv-python==4.12.0.88
+numpy>=2.0,<2.3
+
+# ---- Web App ----
+flask==3.1.1
+
+# ---- Gemini AI (NEW SDK) ----
+google-genai
+
+# ---- Environment Variables ----
+python-dotenv==1.2.1
+
+# ---- Text-to-Speech (Voice) ----
+pyttsx3==2.99
+pywin32==311
+
+# ---- Utilities ----
+requests==2.32.5
