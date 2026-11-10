@@ -19,7 +19,7 @@ python-dotenv==1.2.1
 
 # ---- Text-to-Speech (Voice) ----
 pyttsx3==2.99
-pywin32==311
+pywin32==311; sys_platform == "win32"
 
 # ---- Utilities ----
 requests==2.32.5

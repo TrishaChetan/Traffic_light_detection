@@ -1,6 +1,8 @@
 import os
-import pyttsx3
+import sys
 import threading
+
+import pyttsx3
 from google import genai
 from dotenv import load_dotenv
 
@@ -8,9 +10,14 @@ load_dotenv()
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-engine = pyttsx3.init(driverName="sapi5")
-engine.setProperty("rate", 165)
-engine.setProperty("volume", 1.0)
+# sapi5 is Windows-only; let pyttsx3 pick nsss (macOS) / espeak (Linux) elsewhere
+try:
+    engine = pyttsx3.init(driverName="sapi5" if sys.platform == "win32" else None)
+    engine.setProperty("rate", 165)
+    engine.setProperty("volume", 1.0)
+except Exception as e:  # no TTS backend installed — keep running without voice
+    print("⚠️ Text-to-speech unavailable:", e)
+    engine = None
 
 speech_lock = threading.Lock()
 is_speaking = False
@@ -21,15 +28,18 @@ def _speak_blocking(text):
     global is_speaking
     with speech_lock:
         is_speaking = True
-
-        engine.say(text)
-        engine.runAndWait()
-
-        is_speaking = False
+        try:
+            engine.say(text)
+            engine.runAndWait()
+        finally:
+            is_speaking = False
 
 
 def speak(text):
     global last_spoken_text, is_speaking
+
+    if engine is None:
+        return
 
     # 🔥 prevent repeat
     if text == last_spoken_text:
