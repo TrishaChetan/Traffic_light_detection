@@ -52,48 +52,91 @@
 
     <img id="video" src="{{ url_for('video_feed') }}" width="640" height="480" />
 
-    <p id="output">⏳ Waiting for detection...</p>
+    <div id="status" class="status none">
+        <span id="light">⏳ Waiting for detection...</span>
+        <span id="distance"></span>
+    </div>
+    <p id="output"></p>
+
+    <label class="toggle">
+        <input type="checkbox" id="browserVoice"> Also speak advice in this browser
+    </label>
+
+    <h3>Recent light changes</h3>
+    <ul id="history"><li class="muted">No changes yet</li></ul>
+
+    <style>
+        .status { display: inline-flex; gap: 1rem; align-items: center; padding: 0.6rem 1.2rem;
+                  border-radius: 999px; font-size: 1.3rem; font-weight: bold; margin-top: 1rem; }
+        .status.red { background: #ffdddd; color: #b00000; }
+        .status.yellow { background: #fff4cc; color: #8a6d00; }
+        .status.green { background: #ddffdd; color: #006400; }
+        .status.none { background: #eee; color: #555; }
+        #output { white-space: pre-wrap; max-width: 640px; margin: 1rem auto; }
+        #history { list-style: none; padding: 0; max-width: 640px; margin: 0 auto; text-align: left; }
+        #history li { padding: 0.25rem 0; border-bottom: 1px solid #eee; }
+        .muted { color: #888; }
+        .toggle { display: block; margin: 0.5rem 0 1rem; color: #555; }
+    </style>
 
     <script>
-        let lastSpokenTime = 0;
+        const NO_LIGHT = "No traffic light detected";
+        let lastSpokenResponse = "";
+
+        function colorOf(label) {
+            const l = (label || "").toLowerCase();
+            return ["red", "yellow", "green"].find(c => l.includes(c)) || "none";
+        }
 
         function speakText(text) {
-            if (!text) return;
-
+            if (!text || !("speechSynthesis" in window)) return;
             speechSynthesis.cancel();
+            speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+        }
 
-            const utterance = new SpeechSynthesisUtterance(text);
-            speechSynthesis.speak(utterance);
+        function render(data) {
+            const status = document.getElementById("status");
+            const hasLight = data.label && data.label !== NO_LIGHT;
+            status.className = "status " + (hasLight ? colorOf(data.label) : "none");
+            document.getElementById("light").innerText = hasLight
+                ? "🚦 " + data.label.replace(/_/g, " ")
+                : "No traffic light in view";
+            document.getElementById("distance").innerText =
+                hasLight && data.distance ? `~${data.distance} m` : "";
+            document.getElementById("output").innerText = data.response ? "💬 " + data.response : "";
+
+            // The server already speaks through its own TTS; the browser voice is
+            // optional and only speaks when the advice actually changes.
+            if (document.getElementById("browserVoice").checked &&
+                data.response && data.response !== lastSpokenResponse) {
+                speakText(data.response);
+            }
+            lastSpokenResponse = data.response;
+
+            const list = document.getElementById("history");
+            list.innerHTML = "";
+            if (!data.history || !data.history.length) {
+                list.innerHTML = '<li class="muted">No changes yet</li>';
+            }
+            (data.history || []).forEach(h => {
+                const li = document.createElement("li");
+                const dist = h.distance ? ` · ~${h.distance} m` : "";
+                li.textContent = `${h.time}  ${h.label.replace(/_/g, " ")}${dist}`;
+                list.appendChild(li);
+            });
         }
 
         function updateInfo() {
-            fetch('/latest_detection')
-                .then(response => response.json())
-                .then(data => {
-
-                    const output = document.getElementById('output');
-
-                    if (data.label) {
-
-                        const msg = `🔍 ${data.label} detected at ${data.distance}m.\n\n💬 Gemini says: ${data.response}`;
-                        output.innerText = msg;
-
-                        const now = Date.now();
-
-                        // 🔥 SPEAK every 5 seconds MAX (not spammy, not blocked)
-                        if (now - lastSpokenTime > 5000) {
-
-                            speakText(data.response);
-                            lastSpokenTime = now;
-                        }
-
-                    } else {
-                        output.innerText = "⚠️ No traffic light detected yet.";
-                    }
+            fetch("/latest_detection")
+                .then(r => r.json())
+                .then(render)
+                .catch(() => {
+                    document.getElementById("light").innerText = "⚠️ Lost connection to the server";
                 });
         }
 
-        setInterval(updateInfo, 4000);
+        updateInfo();
+        setInterval(updateInfo, 500);  // traffic lights change fast — poll twice a second
     </script>
 
 </body>

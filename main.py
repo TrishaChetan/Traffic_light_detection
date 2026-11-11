@@ -69,7 +69,10 @@ def analyze_auto():
     # =====================
     # 🔥 GEMINI TRIGGER
     # =====================
-    if label != "No traffic light detected":
+    # Only ask Gemini about a real, current detection. (label is None when this
+    # frame has no light, which used to pass this check and produce prompts like
+    # "There is a No traffic light detected signal nearby ahead".)
+    if label and stable_label != "No traffic light detected":
         distance_text = f"{stable_distance} meters" if stable_distance else "nearby"
 
         if (

@@ -1,6 +1,8 @@
 from flask import Flask, render_template, Response, jsonify
 import threading
 import time
+from collections import deque
+
 import cv2
 
 from realtime_detect import camera_loop, detection_loop, detect_single_frame
@@ -11,11 +13,18 @@ app = Flask(__name__)
 # =====================
 # GLOBAL STATE
 # =====================
+NO_LIGHT = "No traffic light detected"
+
 latest_data = {
-    "label": "No traffic light detected",
+    "label": NO_LIGHT,
     "distance": None,
-    "response": "Starting system..."
+    "response": "Starting system...",
+    "updated_at": None,
+    "history": [],
 }
+
+# last 10 light changes, newest first, for the dashboard timeline
+history = deque(maxlen=10)
 
 data_lock = threading.Lock()
 
@@ -42,21 +51,28 @@ def update_data_loop():
 
     while True:
         try:
-            # 🔥 1. GET STABLE DETECTION DIRECTLY
-            frame, label, distance = detect_single_frame()
+            # analyze_auto() applies the 3 s hold, so the label clears when the
+            # light really disappears instead of sticking on the last one forever
+            frame, label, distance, response = analyze_auto()
 
-            # 🔥 2. GET AI RESPONSE SEPARATELY
-            _, _, _, response = analyze_auto()
+            if frame is None:
+                time.sleep(0.1)
+                continue
 
             with data_lock:
-                if label is not None:
-                    latest_data["label"] = label
-                    latest_data["distance"] = distance
+                if label != latest_data["label"]:
+                    history.appendleft({
+                        "time": time.strftime("%H:%M:%S"),
+                        "label": label,
+                        "distance": distance,
+                    })
+                    print("🚦 Light changed →", label, distance)
 
+                latest_data["label"] = label
+                latest_data["distance"] = distance
                 latest_data["response"] = response
-
-            # 🔍 DEBUG (VERY IMPORTANT)
-            print("UI DATA →", latest_data["label"], latest_data["distance"])
+                latest_data["updated_at"] = time.time()
+                latest_data["history"] = list(history)
 
         except Exception as e:
             print("⚠️ Update loop error:", e)
