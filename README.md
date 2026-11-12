@@ -14,6 +14,7 @@ Phone camera / webcam ──► camera thread ──► YOLO (best.pt) ──►
 - **Distance estimate** — approximated from bounding-box width (`distance ≈ K / box_width`, `K = 2000` in `realtime_detect.py`; calibrate for your camera).
 - **Stability** — a detection is held for 3 s so the label doesn't flicker when a frame is missed.
 - **AI assistant** — when the light changes, Gemini is asked for a one-sentence driving instruction, which is spoken aloud (with a cooldown so it doesn't repeat itself).
+- **Always answers** — if there's no `GEMINI_API_KEY`, Gemini errors (e.g. quota) or takes longer than `GEMINI_TIMEOUT` seconds (default 5), a built-in rule gives the instruction instead, based on the light colour and distance. The app also starts and works fully offline.
 
 ## Setup
 
@@ -29,6 +30,7 @@ GEMINI_API_KEY=your-key-here
 # A phone running the "IP Webcam" app, or 0 for your laptop webcam
 CAMERA_SOURCE=http://192.168.1.20:8080/video
 # Optional
+GEMINI_TIMEOUT=5
 CONF_THRESHOLD=0.4
 MODEL_PATH=best.pt
 ```

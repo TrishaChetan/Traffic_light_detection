@@ -1,5 +1,5 @@
 from realtime_detect import detect_single_frame
-from gemini_assistant import get_gemini_response
+from gemini_assistant import get_driving_advice
 import time
 import threading
 
@@ -24,10 +24,10 @@ latest_response = "System ready."
 # =====================
 # ASYNC GEMINI CALL
 # =====================
-def async_gemini_call(prompt):
+def async_gemini_call(label, distance):
     global latest_response
     try:
-        response = get_gemini_response(prompt)
+        response = get_driving_advice(label, distance)
         latest_response = response
     except Exception as e:
         print("⚠️ Gemini async error:", e)
@@ -73,17 +73,14 @@ def analyze_auto():
     # frame has no light, which used to pass this check and produce prompts like
     # "There is a No traffic light detected signal nearby ahead".)
     if label and stable_label != "No traffic light detected":
-        distance_text = f"{stable_distance} meters" if stable_distance else "nearby"
 
         if (
             stable_label != last_spoken_label and
             (current_time - last_spoken_time > COOLDOWN)
         ):
-            prompt = f"There is a {stable_label} signal {distance_text} ahead. What should I do?"
-
             threading.Thread(
                 target=async_gemini_call,
-                args=(prompt,),
+                args=(stable_label, stable_distance),
                 daemon=True
             ).start()
 
