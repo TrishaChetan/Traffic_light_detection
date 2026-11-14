@@ -14,6 +14,7 @@ Phone camera / webcam ──► camera thread ──► YOLO (best.pt) ──►
 - **Distance estimate** — approximated from bounding-box width (`distance ≈ K / box_width`, `K = 2000` in `realtime_detect.py`; calibrate for your camera).
 - **Stability** — a detection is held for 3 s so the label doesn't flicker when a frame is missed.
 - **AI assistant** — when the light changes, Gemini is asked for a one-sentence driving instruction, which is spoken aloud (with a cooldown so it doesn't repeat itself).
+- **Trip log** — every light change and every new piece of advice is appended to `logs/trip_YYYY-MM-DD.csv` (time, light, distance, advice). Download today's log from the dashboard, or an earlier day with `/download_log?date=YYYY-MM-DD`.
 - **Always answers** — if there's no `GEMINI_API_KEY`, Gemini errors (e.g. quota) or takes longer than `GEMINI_TIMEOUT` seconds (default 5), a built-in rule gives the instruction instead, based on the light colour and distance. The app also starts and works fully offline.
 
 ## Setup
@@ -58,6 +59,7 @@ Open http://127.0.0.1:5000 to see the live feed with detections and the assistan
 |---|---|
 | `app.py` | Flask server: video stream, `/latest_detection` JSON endpoint, background threads |
 | `realtime_detect.py` | Camera thread (with reconnect) and YOLO detection thread |
+| `trip_log.py` | Daily CSV log of light changes and advice |
 | `main.py` | Detection stabilisation and when to ask Gemini |
 | `gemini_assistant.py` | Gemini API call + cross-platform text-to-speech |
 | `convert_json_to_yolo.py` | Converts JSON annotations to YOLO label files |

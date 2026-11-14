@@ -1,7 +1,10 @@
-from flask import Flask, render_template, Response, jsonify
+from flask import Flask, render_template, Response, jsonify, request, send_file
+import os
 import threading
 import time
 from collections import deque
+
+import trip_log
 
 import cv2
 
@@ -67,6 +70,10 @@ def update_data_loop():
                         "distance": distance,
                     })
                     print("🚦 Light changed →", label, distance)
+                    trip_log.log_event("light", label, distance)
+
+                if response and response != latest_data["response"] and label != NO_LIGHT:
+                    trip_log.log_event("advice", label, distance, response)
 
                 latest_data["label"] = label
                 latest_data["distance"] = distance
@@ -124,6 +131,18 @@ def video_feed():
         generate(),
         mimetype='multipart/x-mixed-replace; boundary=frame'
     )
+
+
+@app.route('/download_log')
+def download_log():
+    """Today's trip log as CSV, or ?date=YYYY-MM-DD for an earlier day."""
+    try:
+        path = trip_log.log_path(request.args.get("date"))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    if not os.path.exists(path):
+        return jsonify({"error": "no log for that day yet", "available": trip_log.available_days()}), 404
+    return send_file(path, mimetype="text/csv", as_attachment=True, download_name=os.path.basename(path))
 
 
 @app.route('/latest_detection')
