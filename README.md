@@ -16,6 +16,7 @@ Phone camera / webcam ──► camera thread ──► YOLO (best.pt) ──►
 - **AI assistant** — when the light changes, Gemini is asked for a one-sentence driving instruction, which is spoken aloud (with a cooldown so it doesn't repeat itself).
 - **Camera watchdog** — if no new frame arrives for `STALE_AFTER` seconds (default 2), detection pauses, the light is cleared and the dashboard shows *Camera offline — reconnecting…* instead of a frozen image and an outdated light. `GET /health` reports camera state, detection fps and model time (HTTP 503 while offline); camera URLs with passwords are masked.
 - **Trip log** — every light change and every new piece of advice is appended to `logs/trip_YYYY-MM-DD.csv` (time, light, distance, advice). Download today's log from the dashboard, or an earlier day with `/download_log?date=YYYY-MM-DD`.
+- **Trip summary** — a "Today's trip" card on the dashboard shows how many lights you met, red stops, and your average and longest wait at a red light (red until the next green; gaps over 5 min and camera dropouts are ignored). Also at `/trip_summary?date=YYYY-MM-DD` as JSON, or run `python trip_summary.py [YYYY-MM-DD]` for a text report.
 - **Always answers** — if there's no `GEMINI_API_KEY`, Gemini errors (e.g. quota) or takes longer than `GEMINI_TIMEOUT` seconds (default 5), a built-in rule gives the instruction instead, based on the light colour and distance. The app also starts and works fully offline.
 
 ## Setup
@@ -61,6 +62,7 @@ Open http://127.0.0.1:5000 to see the live feed with detections and the assistan
 | `app.py` | Flask server: video stream, `/latest_detection` JSON endpoint, background threads |
 | `realtime_detect.py` | Camera thread (with reconnect) and YOLO detection thread |
 | `trip_log.py` | Daily CSV log of light changes and advice |
+| `trip_summary.py` | Lights seen, red-light waits and dropouts from a day's log (CLI + `/trip_summary`) |
 | `main.py` | Detection stabilisation and when to ask Gemini |
 | `gemini_assistant.py` | Gemini API call + cross-platform text-to-speech |
 | `convert_json_to_yolo.py` | Converts JSON annotations to YOLO label files |

@@ -5,6 +5,7 @@ import time
 from collections import deque
 
 import trip_log
+import trip_summary
 
 import cv2
 
@@ -152,6 +153,15 @@ def download_log():
     if not os.path.exists(path):
         return jsonify({"error": "no log for that day yet", "available": trip_log.available_days()}), 404
     return send_file(path, mimetype="text/csv", as_attachment=True, download_name=os.path.basename(path))
+
+
+@app.route('/trip_summary')
+def trip_summary_route():
+    """Lights seen, red-light waits and camera dropouts for today (or ?date=YYYY-MM-DD)."""
+    try:
+        return jsonify(trip_summary.summarize(request.args.get("date")))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route('/latest_detection')

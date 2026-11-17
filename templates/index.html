@@ -64,6 +64,17 @@
         <input type="checkbox" id="browserVoice"> Also speak advice in this browser
     </label>
 
+    <div id="trip" class="trip" hidden>
+        <h3>Today's trip</h3>
+        <div class="trip-grid">
+            <div><b id="tripLights">0</b><span>lights</span></div>
+            <div><b id="tripReds">0</b><span>red stops</span></div>
+            <div><b id="tripAvg">-</b><span>avg red wait</span></div>
+            <div><b id="tripLongest">-</b><span>longest wait</span></div>
+        </div>
+        <p id="tripMix" class="muted"></p>
+    </div>
+
     <h3>Recent light changes <a class="log-link" href="/download_log" download>⬇ Download today's trip log (CSV)</a></h3>
     <ul id="history"><li class="muted">No changes yet</li></ul>
 
@@ -82,6 +93,12 @@
                       background: #fff3cd; color: #7a5b00; font-weight: bold; }
         .perf { color: #888; font-size: 0.8rem; margin: -0.5rem 0 0.5rem; }
         .log-link { font-size: 0.8rem; font-weight: normal; margin-left: 0.5rem; }
+        .trip { max-width: 640px; margin: 1rem auto; }
+        .trip-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
+        .trip-grid div { background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 10px; padding: 0.5rem; }
+        .trip-grid b { display: block; font-size: 1.3rem; }
+        .trip-grid span { font-size: 0.75rem; opacity: 0.7; }
+        @media (max-width: 480px) { .trip-grid { grid-template-columns: repeat(2, 1fr); } }
         .toggle { display: block; margin: 0.5rem 0 1rem; color: #555; }
     </style>
 
@@ -151,8 +168,35 @@
                 });
         }
 
+        function fmtSecs(s) {
+            if (s === null || s === undefined) return "-";
+            s = Math.round(s);
+            return s >= 60 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s` : `${s}s`;
+        }
+
+        function updateTrip() {
+            fetch("/trip_summary")
+                .then(r => r.json())
+                .then(t => {
+                    document.getElementById("trip").hidden = !t.found;
+                    if (!t.found) return;
+                    document.getElementById("tripLights").innerText = t.total_lights;
+                    document.getElementById("tripReds").innerText = t.red_waits;
+                    document.getElementById("tripAvg").innerText = fmtSecs(t.avg_red_wait_s);
+                    document.getElementById("tripLongest").innerText = fmtSecs(t.longest_red_wait_s);
+                    const l = t.lights;
+                    document.getElementById("tripMix").innerText =
+                        `🔴 ${l.red} · 🟡 ${l.yellow} · 🟢 ${l.green}` +
+                        ` · ${fmtSecs(t.total_red_wait_s)} waiting at reds in total` +
+                        (t.camera_dropouts ? ` · ${t.camera_dropouts} camera dropout(s)` : "");
+                })
+                .catch(() => {});
+        }
+
         updateInfo();
-        setInterval(updateInfo, 500);  // traffic lights change fast — poll twice a second
+        setInterval(updateInfo, 500);
+        updateTrip();
+        setInterval(updateTrip, 10000);  // the summary changes slowly  // traffic lights change fast — poll twice a second
     </script>
 
 </body>
