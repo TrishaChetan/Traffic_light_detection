@@ -1,4 +1,5 @@
 import os
+import re
 import threading
 import time
 
@@ -35,6 +36,36 @@ print("✅ Model loaded and fused")
 latest_camera_frame = None
 camera_lock = threading.Lock()
 
+# If no new frame arrives for this long, the camera is treated as offline and
+# detection stops — otherwise the last frozen frame would keep "showing" a light.
+STALE_AFTER = float(os.getenv("STALE_AFTER", "2.0"))
+
+stats = {
+    "camera_online": False,
+    "last_frame_at": 0.0,
+    "camera_reconnects": 0,
+    "detection_fps": 0.0,
+    "inference_ms": None,
+}
+stats_lock = threading.Lock()
+
+
+def _masked_source(src: str) -> str:
+    # hide credentials in URLs like http://user:pass@192.168.1.20:8080/video
+    return re.sub(r"//[^/@]+@", "//***@", src)
+
+
+def get_status() -> dict:
+    """Snapshot for /health and the dashboard."""
+    with stats_lock:
+        s = dict(stats)
+    age = time.time() - s["last_frame_at"] if s["last_frame_at"] else None
+    s["camera_online"] = bool(age is not None and age < STALE_AFTER)
+    s["frame_age_s"] = None if age is None else round(age, 2)
+    s["camera_source"] = _masked_source(CAMERA_SOURCE)
+    s["model"] = os.path.basename(MODEL_PATH)
+    return s
+
 latest_detection = {
     "frame": None,
     "label": "No traffic light detected",
@@ -67,6 +98,8 @@ def camera_loop():
     while True:
         cap = open_camera()
         if not cap.isOpened():
+            with stats_lock:
+                stats["camera_online"] = False
             print(f"❌ Camera failed to open — retrying in {RECONNECT_DELAY}s")
             time.sleep(RECONNECT_DELAY)
             continue
@@ -81,9 +114,15 @@ def camera_loop():
             failures = 0
             with camera_lock:
                 latest_camera_frame = frame
+            with stats_lock:
+                stats["last_frame_at"] = time.time()
+                stats["camera_online"] = True
             time.sleep(0.01)
 
         print("⚠️ Camera stream lost — reconnecting")
+        with stats_lock:
+            stats["camera_online"] = False
+            stats["camera_reconnects"] += 1
         cap.release()
         time.sleep(RECONNECT_DELAY)
 
@@ -114,17 +153,32 @@ def detection_loop():
 
     while True:
         with camera_lock:
-            if latest_camera_frame is None:
-                time.sleep(0.01)
-                continue
-            frame = latest_camera_frame.copy()
+            frame = None if latest_camera_frame is None else latest_camera_frame.copy()
+        with stats_lock:
+            last_frame_at = stats["last_frame_at"]
+        if frame is None:
+            time.sleep(0.05)
+            continue
+
+        # Camera went quiet: don't keep re-detecting a frozen frame.
+        if time.time() - last_frame_at > STALE_AFTER:
+            with detection_lock:
+                latest_detection["label"] = "No traffic light detected"
+                latest_detection["distance"] = None
+                latest_detection["frame"] = None
+            with stats_lock:
+                stats["detection_fps"] = 0.0
+            time.sleep(0.2)
+            continue
 
         label = None
         distance = None
+        t0 = time.time()
 
         try:
             resized = cv2.resize(frame, (IMG_SIZE, IMG_SIZE))
             results = model(resized, conf=CONF_THRESHOLD, verbose=False)
+            infer_ms = (time.time() - t0) * 1000
 
             if results and len(results[0].boxes) > 0:
                 boxes = results[0].boxes
@@ -146,8 +200,16 @@ def detection_loop():
 
         except Exception as e:
             print("⚠️ Detection error:", e)
+            infer_ms = None
 
         current_time = time.time()
+        with stats_lock:
+            loop_s = max(current_time - t0 + 0.05, 1e-3)
+            # smoothed frames-per-second and model time
+            stats["detection_fps"] = round(0.8 * stats["detection_fps"] + 0.2 * (1 / loop_s), 1)
+            if infer_ms is not None:
+                prev = stats["inference_ms"]
+                stats["inference_ms"] = round(infer_ms if prev is None else 0.8 * prev + 0.2 * infer_ms, 1)
 
         with detection_lock:
             # 🔥 If detected → update

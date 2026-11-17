@@ -14,6 +14,7 @@ Phone camera / webcam ──► camera thread ──► YOLO (best.pt) ──►
 - **Distance estimate** — approximated from bounding-box width (`distance ≈ K / box_width`, `K = 2000` in `realtime_detect.py`; calibrate for your camera).
 - **Stability** — a detection is held for 3 s so the label doesn't flicker when a frame is missed.
 - **AI assistant** — when the light changes, Gemini is asked for a one-sentence driving instruction, which is spoken aloud (with a cooldown so it doesn't repeat itself).
+- **Camera watchdog** — if no new frame arrives for `STALE_AFTER` seconds (default 2), detection pauses, the light is cleared and the dashboard shows *Camera offline — reconnecting…* instead of a frozen image and an outdated light. `GET /health` reports camera state, detection fps and model time (HTTP 503 while offline); camera URLs with passwords are masked.
 - **Trip log** — every light change and every new piece of advice is appended to `logs/trip_YYYY-MM-DD.csv` (time, light, distance, advice). Download today's log from the dashboard, or an earlier day with `/download_log?date=YYYY-MM-DD`.
 - **Always answers** — if there's no `GEMINI_API_KEY`, Gemini errors (e.g. quota) or takes longer than `GEMINI_TIMEOUT` seconds (default 5), a built-in rule gives the instruction instead, based on the light colour and distance. The app also starts and works fully offline.
 

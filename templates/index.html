@@ -52,11 +52,13 @@
 
     <img id="video" src="{{ url_for('video_feed') }}" width="640" height="480" />
 
+    <div id="camBanner" class="cam-banner" hidden>📷 Camera offline — reconnecting… (detection paused)</div>
     <div id="status" class="status none">
         <span id="light">⏳ Waiting for detection...</span>
         <span id="distance"></span>
     </div>
     <p id="output"></p>
+    <p id="perf" class="perf"></p>
 
     <label class="toggle">
         <input type="checkbox" id="browserVoice"> Also speak advice in this browser
@@ -76,6 +78,9 @@
         #history { list-style: none; padding: 0; max-width: 640px; margin: 0 auto; text-align: left; }
         #history li { padding: 0.25rem 0; border-bottom: 1px solid #eee; }
         .muted { color: #888; }
+        .cam-banner { margin: 1rem auto 0; max-width: 640px; padding: 0.6rem 1rem; border-radius: 10px;
+                      background: #fff3cd; color: #7a5b00; font-weight: bold; }
+        .perf { color: #888; font-size: 0.8rem; margin: -0.5rem 0 0.5rem; }
         .log-link { font-size: 0.8rem; font-weight: normal; margin-left: 0.5rem; }
         .toggle { display: block; margin: 0.5rem 0 1rem; color: #555; }
     </style>
@@ -95,7 +100,17 @@
             speechSynthesis.speak(new SpeechSynthesisUtterance(text));
         }
 
+        function renderStatus(s) {
+            if (!s) return;
+            document.getElementById("camBanner").hidden = s.camera_online;
+            const perf = s.camera_online
+                ? `${s.detection_fps} fps` + (s.inference_ms ? ` · model ${Math.round(s.inference_ms)} ms` : "")
+                : "";
+            document.getElementById("perf").innerText = perf;
+        }
+
         function render(data) {
+            renderStatus(data.status);
             const status = document.getElementById("status");
             const hasLight = data.label && data.label !== NO_LIGHT;
             status.className = "status " + (hasLight ? colorOf(data.label) : "none");

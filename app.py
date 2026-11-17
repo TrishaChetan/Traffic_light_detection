@@ -8,7 +8,7 @@ import trip_log
 
 import cv2
 
-from realtime_detect import camera_loop, detection_loop, detect_single_frame
+from realtime_detect import camera_loop, detection_loop, detect_single_frame, get_status
 from main import analyze_auto
 
 app = Flask(__name__)
@@ -59,7 +59,16 @@ def update_data_loop():
             frame, label, distance, response = analyze_auto()
 
             if frame is None:
-                time.sleep(0.1)
+                # camera offline/stale: clear the light instead of showing the last one forever
+                with data_lock:
+                    if latest_data["label"] != NO_LIGHT:
+                        history.appendleft({"time": time.strftime("%H:%M:%S"), "label": "camera offline",
+                                            "distance": None})
+                        latest_data["history"] = list(history)
+                        trip_log.log_event("camera_offline", "", None)
+                    latest_data["label"] = NO_LIGHT
+                    latest_data["distance"] = None
+                time.sleep(0.2)
                 continue
 
             with data_lock:
@@ -148,7 +157,16 @@ def download_log():
 @app.route('/latest_detection')
 def latest_detection():
     with data_lock:
-        return jsonify(latest_data)
+        data = dict(latest_data)
+    data["status"] = get_status()
+    return jsonify(data)
+
+
+@app.route('/health')
+def health():
+    """Camera, detection speed and model info. 503 while the camera is offline."""
+    s = get_status()
+    return jsonify(s), (200 if s["camera_online"] else 503)
 
 
 # =====================
