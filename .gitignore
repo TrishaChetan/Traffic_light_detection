@@ -11,3 +11,6 @@ __pycache__/
 .venv/
 runs/
 logs/
+
+# Saved dashboard snapshots
+snapshots/

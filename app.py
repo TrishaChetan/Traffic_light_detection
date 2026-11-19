@@ -4,6 +4,7 @@ import threading
 import time
 from collections import deque
 
+import snapshots
 import trip_log
 import trip_summary
 
@@ -81,6 +82,11 @@ def update_data_loop():
                     })
                     print("🚦 Light changed →", label, distance)
                     trip_log.log_event("light", label, distance)
+                    if snapshots.should_auto_snapshot(label):
+                        try:
+                            snapshots.save(frame, label, distance, reason="auto")
+                        except Exception as e:
+                            print("⚠️ Snapshot failed:", e)
 
                 if response and response != latest_data["response"] and label != NO_LIGHT:
                     trip_log.log_event("advice", label, distance, response)
@@ -162,6 +168,35 @@ def trip_summary_route():
         return jsonify(trip_summary.summarize(request.args.get("date")))
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+
+
+@app.route('/snapshot', methods=['POST'])
+def take_snapshot():
+    """Save the current annotated frame (with a time / light / distance caption)."""
+    frame, _, _ = detect_single_frame()
+    if frame is None:
+        return jsonify({"error": "camera offline — nothing to capture"}), 503
+    with data_lock:
+        label, distance = latest_data["label"], latest_data["distance"]
+    try:
+        name = snapshots.save(frame, label, distance, reason="manual")
+    except OSError as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"name": name, "url": f"/snapshots/{name}"}), 201
+
+
+@app.route('/snapshots')
+def snapshot_list():
+    return jsonify({"auto": snapshots.AUTO_SNAPSHOT, "snapshots": [
+        {**s, "url": f"/snapshots/{s['name']}"} for s in snapshots.list_snapshots(limit=int(request.args.get("limit", 50)))]})
+
+
+@app.route('/snapshots/<name>')
+def snapshot_file(name):
+    path = snapshots.path_for(name)
+    if not path:
+        return jsonify({"error": "not found"}), 404
+    return send_file(path, mimetype="image/jpeg", download_name=name)
 
 
 @app.route('/latest_detection')
